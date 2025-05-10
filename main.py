@@ -1,13 +1,12 @@
-import json
+import json, os
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
 from app.ml.classification_utils import classify_image
 from app.utils import list_images
-
 
 app = FastAPI()
 config = Configuration()
@@ -28,12 +27,16 @@ def info() -> dict[str, list[str]]:
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    """The home page of the service."""
-    return templates.TemplateResponse("home.html", {"request": request})
+    """The home page of the service with histogram functionality."""
+    return templates.TemplateResponse(
+        "home.html",
+        {"request": request, "images": list_images()}
+    )
 
 
 @app.get("/classifications")
 def create_classify(request: Request):
+    """Renders the classification selection page."""
     return templates.TemplateResponse(
         "classification_select.html",
         {"request": request, "images": list_images(), "models": Configuration.models},
@@ -42,6 +45,7 @@ def create_classify(request: Request):
 
 @app.post("/classifications")
 async def request_classification(request: Request):
+    """Handles the classification request."""
     form = ClassificationForm(request)
     await form.load_data()
     image_id = form.image_id
@@ -55,3 +59,24 @@ async def request_classification(request: Request):
             "classification_scores": json.dumps(classification_scores),
         },
     )
+
+#create gets for the download of the JSON results and the GRAPH
+# Issue 3:
+@app.get("/download_results")
+def download_results(image_id : str, classification_scores : str):
+    """Download the results (classification
+     scores) as a JSON file"""
+    file_name = f"classification_result_{image_id}.json"
+    file_path = os.getcwd() + "/" + file_name
+    classification_scores = json.loads(classification_scores)
+    with open(file_path, "w") as f:
+        json.dump(classification_scores, f)
+
+    return FileResponse(file_path, media_type="application/json", filename=file_name)
+
+''''@app.get("/download_plot")
+def download_plot():
+    """Download the PNG file showing the
+    top 5 scores in a plot (bar chart)."""
+    '''
+
