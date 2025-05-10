@@ -67,7 +67,7 @@ def download_results(image_id : str, classification_scores : str):
     """Download the results (classification
      scores) as a JSON file"""
     file_name = f"classification_result_{image_id}.json"
-    file_path = os.getcwd() + "/" + file_name
+    file_path = "downloads/" + file_name
     classification_scores = json.loads(classification_scores)
     with open(file_path, "w") as f:
         json.dump(classification_scores, f)
@@ -78,5 +78,6 @@ def download_results(image_id : str, classification_scores : str):
 def download_plot():
     """Download the PNG file showing the
     top 5 scores in a plot (bar chart)."""
-    '''
 
+    return FileResponse(file_path, media_type="image/png", filename=file_name)
+'''
