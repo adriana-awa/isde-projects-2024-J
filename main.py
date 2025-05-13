@@ -1,4 +1,5 @@
 import json, os
+import matplotlib.pyplot as plt
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -74,10 +75,31 @@ def download_results(image_id : str, classification_scores : str):
 
     return FileResponse(file_path, media_type="application/json", filename=file_name)
 
-''''@app.get("/download_plot")
-def download_plot():
+@app.get("/download_plot")
+def download_plot(image_id : str, classification_scores : str):
     """Download the PNG file showing the
     top 5 scores in a plot (bar chart)."""
+    scores = json.loads(classification_scores)
+
+    labels = [score[0] for score in scores]
+    values = [score[1] for score in scores]
+
+
+    file_name = f"classification_plot_{image_id}.png"
+    file_path = "downloads/" + file_name
+
+    #create plot
+    colors = ["darkgreen", "xkcd:crimson", "goldenrod", "blue", "xkcd:plum"]
+    labels.reverse()
+    values.reverse()
+    colors.reverse()
+
+
+    plt.figure(figsize=(9, 5))
+    plt.barh(labels, values, color=colors)
+    plt.suptitle('Output scores')
+    plt.grid()
+    plt.savefig(file_path)
+    plt.close()
 
     return FileResponse(file_path, media_type="image/png", filename=file_name)
-'''
