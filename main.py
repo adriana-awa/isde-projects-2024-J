@@ -1,4 +1,5 @@
 import json
+import os
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,9 +8,17 @@ from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
 from app.ml.classification_utils import classify_image
 from app.utils import list_images
+#Feature 2:
+from PIL import Image, ImageEnhance
+from fastapi.responses import Response
+from io import BytesIO
+from pydantic import BaseModel
+from fastapi import HTTPException
+
+
 
 app = FastAPI()
-config = Configuration()
+config = Configuration() 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -60,6 +69,38 @@ async def request_classification(request: Request):
         },
     )
 
+  #Feature 2:
+class TransformRequest(BaseModel):
+    image_id: str
+    brightness: float
+    contrast: float
+    color: float
+    sharpness: float
 
+@app.post("/transform")
+async def transform_image(request: TransformRequest):
+    """Apply image transformations and return the result"""
+    try:
+        # Open the image
+        image_path = os.path.join(config.image_folder_path, request.image_id)
+        img = Image.open(image_path)
 
+        # Apply transformations
+        if request.brightness != 1.0:
+            img = ImageEnhance.Brightness(img).enhance(request.brightness)
+        if request.contrast != 1.0:
+            img = ImageEnhance.Contrast(img).enhance(request.contrast)
+        if request.color != 1.0:
+            img = ImageEnhance.Color(img).enhance(request.color)
+        if request.sharpness != 1.0:
+            img = ImageEnhance.Sharpness(img).enhance(request.sharpness)
 
+        # Save to bytes
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+
+        return Response(content=img_byte_arr.getvalue(), media_type="image/png")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
