@@ -10,4 +10,87 @@
     <p style="margin-top:1cm;">For the list of models and images
         available, click
         <a href={{url_for("info")}}>here</a>.</p>
+
+    <h3>Image:</h3>
+    <form id="imageForm" onsubmit="handleSubmit(event)">
+        <select name="image_id" id="image_id">
+            {% for image in images %}
+                <option value="{{ image }}">{{ image }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-dark mt-2">Submit</button>
+    </form>
+
+    <div id="results" style="margin-top: 20px; display: flex; gap: 20px;">
+        <div id="originalImage" style="display: none; flex: 1;">
+            <h3>Original Image:</h3>
+            <img id="selectedImage" alt="Original Image" style="max-width: 100%; max-height: 400px; object-fit: contain;">
+        </div>
+
+        <div id="histogramContainer" style="display: none; flex: 1;">
+            <h3>Histogram:</h3>
+            <canvas id="histogramCanvas" style="width: 100%; max-height: 400px;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        async function handleSubmit(event) {
+            event.preventDefault();
+            const imageId = document.getElementById('image_id').value;
+            
+            // Mostrar imagen original
+            const imagePath = `/static/imagenet_subset/${imageId}`;
+            const imgElement = document.getElementById('selectedImage');
+            imgElement.src = imagePath;
+            document.getElementById('originalImage').style.display = 'block';
+
+            // Cargar imagen para procesar
+            const img = new Image();
+            img.src = imagePath;
+            img.onload = function() {
+                generateHistogram(img);
+            };
+        }
+
+        function generateHistogram(img) {
+            // Crear canvas temporal para procesar la imagen
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            tempCtx.drawImage(img, 0, 0);
+
+            // Obtener datos de la imagen
+            const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+
+            // Calcular histograma
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i += 4) {
+                const brightness = Math.floor((data[i] + data[i + 1] + data[i + 2]) / 3);
+                histogram[brightness]++;
+            }
+
+            // Dibujar histograma
+            const canvas = document.getElementById('histogramCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 512;
+            canvas.height = 300;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'black';
+            
+            const max = Math.max(...histogram);
+            const scale = canvas.height / max;
+            
+            ctx.beginPath();
+            histogram.forEach((value, i) => {
+                const x = (i / 256) * canvas.width;
+                const height = value * scale;
+                ctx.fillRect(x, canvas.height - height, 2, height);
+            });
+
+            document.getElementById('histogramContainer').style.display = 'block';
+        }
+    </script>
 {% endblock %}
