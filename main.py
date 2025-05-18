@@ -1,7 +1,7 @@
-import json
-import os
+import json, os
+import matplotlib.pyplot as plt
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.config import Configuration
@@ -14,7 +14,6 @@ from fastapi.responses import Response
 from io import BytesIO
 from pydantic import BaseModel
 from fastapi import HTTPException
-
 
 
 app = FastAPI()
@@ -69,6 +68,45 @@ async def request_classification(request: Request):
         },
     )
 
+  
+#create gets for the download of the JSON results and the GRAPH
+# Issue 3:
+@app.get("/download_results")
+def download_results(image_id : str, classification_scores : str):
+    """Download the results (classification
+     scores) as a JSON file"""
+    file_name = f"classification_result_{image_id}.json"
+    file_path = "downloads/" + file_name
+    classification_scores = json.loads(classification_scores)
+    with open(file_path, "w") as f:
+        json.dump(classification_scores, f)
+
+    return FileResponse(file_path, media_type="application/json", filename=file_name)
+
+@app.get("/download_plot")
+def download_plot(image_id : str, classification_scores : str):
+    """Download the PNG file showing the
+    top 5 scores in a plot (bar chart)."""
+    scores = json.loads(classification_scores)
+    labels = [score[0] for score in scores]
+    values = [score[1] for score in scores]
+    file_name = f"classification_plot_{image_id}.png"
+    file_path = "downloads/" + file_name
+    #create plot
+    colors = ["darkgreen", "xkcd:crimson", "goldenrod", "blue", "xkcd:plum"]
+    labels.reverse()
+    values.reverse()
+    colors.reverse()
+    plt.figure(figsize=(9, 5))
+    plt.barh(labels, values, color=colors)
+    plt.suptitle('Output scores')
+    plt.grid()
+    plt.savefig(file_path)
+    plt.close()
+
+    return FileResponse(file_path, media_type="image/png", filename=file_name)
+
+  
   #Feature 2:
 class TransformRequest(BaseModel):
     image_id: str
