@@ -8,10 +8,17 @@ from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
 from app.ml.classification_utils import classify_image
 from app.utils import list_images
+#Feature 2:
+from PIL import Image, ImageEnhance
+from fastapi.responses import Response
+from io import BytesIO
+from pydantic import BaseModel
+from fastapi import HTTPException
+
 
 
 app = FastAPI()
-config = Configuration()
+config = Configuration() 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -29,13 +36,16 @@ def info() -> dict[str, list[str]]:
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    """The home page of the service."""
+    """The home page of the service with histogram functionality."""
     return templates.TemplateResponse(
-        "home.html", {"request": request, "images": list_images()})
+        "home.html",
+        {"request": request, "images": list_images()}
+    )
 
 
 @app.get("/classifications")
 def create_classify(request: Request):
+    """Renders the classification selection page."""
     return templates.TemplateResponse(
         "classification_select.html",
         {"request": request, "images": list_images(), "models": Configuration.models},
@@ -44,6 +54,7 @@ def create_classify(request: Request):
 
 @app.post("/classifications")
 async def request_classification(request: Request):
+    """Handles the classification request."""
     form = ClassificationForm(request)
     await form.load_data()
     image_id = form.image_id
@@ -58,14 +69,7 @@ async def request_classification(request: Request):
         },
     )
 
-#FEATURE 2:
-from PIL import Image, ImageEnhance
-from fastapi.responses import Response
-from io import BytesIO
-from pydantic import BaseModel
-from fastapi import HTTPException
-
-
+  #Feature 2:
 class TransformRequest(BaseModel):
     image_id: str
     brightness: float
