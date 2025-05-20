@@ -9,7 +9,7 @@ import os
 import torch
 from PIL import Image
 from torchvision import transforms
-
+from pathlib import Path
 from app.config import Configuration
 
 
@@ -47,11 +47,16 @@ def get_model(model_id):
         raise ImportError
 
 
-def classify_image(model_id, img_id):
-    """Returns the top-5 classification score output from the
-    model specified in model_id when it is fed with the
-    image corresponding to img_id."""
-    img = fetch_image(img_id)
+def classify_image(model_id: str, image_input):
+    """
+    Classifies an image using the specified model.
+    image_input can be either a path (str) or a PIL.Image object
+    """
+    if isinstance(image_input, (str, Path)):
+        image = Image.open(image_input)
+    else:
+        image = image_input
+
     model = get_model(model_id)
     model.eval()
     transform = transforms.Compose(
@@ -64,8 +69,8 @@ def classify_image(model_id, img_id):
     )
 
     # apply transform from torchvision
-    img = img.convert("RGB")
-    preprocessed = transform(img).unsqueeze(0)
+    image = image.convert("RGB")
+    preprocessed = transform(image).unsqueeze(0)
 
     # gets the output from the model
     out = model(preprocessed)
@@ -81,5 +86,5 @@ def classify_image(model_id, img_id):
     # as a list of tuples (label_name, score)
     output = [[labels[idx], percentage[idx].item()] for idx in indices[0][:5]]
 
-    img.close()
+    #image.close()
     return output
