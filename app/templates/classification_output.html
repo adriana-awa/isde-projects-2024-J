@@ -16,7 +16,11 @@
         <div class="col">
             <div class="card">
                 <img class="large-front-thumbnail"
-                     src="{{ 'static/imagenet_subset/'+image_id }} "
+                     {% if is_upload %}
+                        src="{{ url_for('static', path=image_id) }}"
+                     {% else %}
+                        src="{{ 'static/imagenet_subset/'+image_id }}"
+                     {% endif %}
                      alt={{ image_id }}/>
             </div>
         </div>

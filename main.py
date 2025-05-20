@@ -1,6 +1,6 @@
 import json, os
 import matplotlib.pyplot as plt
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, File, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -14,6 +14,11 @@ from fastapi.responses import Response
 from io import BytesIO
 from pydantic import BaseModel
 from fastapi import HTTPException
+#Feature 4: 
+from pathlib import Path
+from PIL import Image
+import io
+from app.forms.upload_form import UploadForm
 
 
 app = FastAPI()
@@ -56,47 +61,84 @@ async def request_classification(request: Request):
     """Handles the classification request."""
     form = ClassificationForm(request)
     await form.load_data()
-    image_id = form.image_id
-    model_id = form.model_id
-    classification_scores = classify_image(model_id=model_id, img_id=image_id)
-    return templates.TemplateResponse(
-        "classification_output.html",
-        {
-            "request": request,
-            "image_id": image_id,
-            "classification_scores": json.dumps(classification_scores),
-        },
-    )
+    try:
+        # Get the image from the images directory
+        image_path = Path("app/static/imagenet_subset") / form.image_id
+        image = Image.open(image_path)
+        
+        # Classify the image
+        classification_scores = classify_image(model_id=form.model_id, image_input=image)
+        
+        return templates.TemplateResponse(
+            "classification_output.html",
+            {
+                "request": request,
+                "image_id": form.image_id,
+                "classification_scores": json.dumps(classification_scores),
+                "is_upload": False
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "classification_select.html",
+            {
+                "request": request,
+                "images": list_images(),
+                "models": Configuration.models,
+                "errors": [str(e)]
+            }
+        )
 
   
 #create gets for the download of the JSON results and the GRAPH
 # Issue 3:
 @app.get("/download_results")
 def download_results(image_id : str, classification_scores : str):
-    """Download the results (classification
-     scores) as a JSON file"""
-    file_name = f"classification_result_{image_id}.json"
-    file_path = "downloads/" + file_name
+    """Download the results (classification scores) as a JSON file"""
+    # Use Path to manage routes safer
+    downloads_dir = Path("downloads").absolute()
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Clean the image_id (remove "temp/" if it exists)
+    clean_image_id = image_id.replace('temp/', '')
+    
+    # Create the complete file path
+    file_name = f"classification_result_{clean_image_id}.json"
+    file_path = downloads_dir / file_name
+    
+    # Save the results
     classification_scores = json.loads(classification_scores)
     with open(file_path, "w") as f:
         json.dump(classification_scores, f)
 
-    return FileResponse(file_path, media_type="application/json", filename=file_name)
+    return FileResponse(str(file_path), media_type="application/json", filename=file_name)
 
 @app.get("/download_plot")
 def download_plot(image_id : str, classification_scores : str):
     """Download the PNG file showing the
     top 5 scores in a plot (bar chart)."""
+    # Usar Path para manejar rutas de manera segura
+    downloads_dir = Path("downloads").absolute()
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Clean the image_id (remove "temp/" if it exists)
+    clean_image_id = image_id.replace('temp/', '')
+    
+    # Create the complete file path
+    file_name = f"classification_plot_{clean_image_id}.png"
+    file_path = downloads_dir / file_name
+
+    # Process the data
     scores = json.loads(classification_scores)
     labels = [score[0] for score in scores]
     values = [score[1] for score in scores]
-    file_name = f"classification_plot_{image_id}.png"
-    file_path = "downloads/" + file_name
-    #create plot
+
+    # Create the plot
     colors = ["darkgreen", "xkcd:crimson", "goldenrod", "blue", "xkcd:plum"]
     labels.reverse()
     values.reverse()
     colors.reverse()
+
     plt.figure(figsize=(9, 5))
     plt.barh(labels, values, color=colors)
     plt.suptitle('Output scores')
@@ -104,7 +146,7 @@ def download_plot(image_id : str, classification_scores : str):
     plt.savefig(file_path)
     plt.close()
 
-    return FileResponse(file_path, media_type="image/png", filename=file_name)
+    return FileResponse(str(file_path), media_type="image/png", filename=file_name)
 
   
   #Feature 2:
@@ -142,3 +184,57 @@ async def transform_image(request: TransformRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+#Feature 4:
+@app.get("/upload")
+async def upload_page(request: Request):
+    return templates.TemplateResponse(
+        "upload.html",
+        {"request": request, "models": config.models}
+    )
+
+@app.post("/upload")
+async def handle_upload(request: Request):
+    form = UploadForm(request)
+    await form.load_data()
+    
+    if form.is_valid():
+        try:
+            # Read the file directly from UploadFile
+            contents = await form.file.read()
+            image = Image.open(io.BytesIO(contents))
+            
+            # Process the image directly
+            results = classify_image(form.model_id, image)
+
+            # Create a temporary copy of the image to display it
+            temp_dir = Path("app/static/temp")
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Usa form.file.filename en lugar de filename
+            temp_path = temp_dir / form.file.filename
+            image.save(temp_path)
+            
+            print(f"File name: {form.file.filename}")
+            print(f"Temp path: {temp_path}")
+            print(f"Results: {results}")
+              
+            # Convert results to JSON
+            classification_scores = json.dumps(results)
+            
+            return templates.TemplateResponse(
+                "classification_output.html",
+                {
+                    "request": request,
+                    "image_id": f"temp/{form.file.filename}",  # Aquí está la corrección
+                    "classification_scores": classification_scores,
+                    "is_upload": True
+                }
+            )
+        except Exception as e:
+            form.errors.append(str(e))
+            return templates.TemplateResponse(
+                "upload.html", 
+                {"request": request, "models": config.models, "errors": form.errors}
+            )
