@@ -19,6 +19,7 @@ from pathlib import Path
 from PIL import Image
 import io
 from app.forms.upload_form import UploadForm
+import base64
 
 
 app = FastAPI()
@@ -201,35 +202,26 @@ async def handle_upload(request: Request):
     
     if form.is_valid():
         try:
-            # Read the file directly from UploadFile
+            # Read and process the image directly from memory
             contents = await form.file.read()
             image = Image.open(io.BytesIO(contents))
             
             # Process the image directly
             results = classify_image(form.model_id, image)
-
-            # Create a temporary copy of the image to display it
-            temp_dir = Path("app/static/temp")
-            temp_dir.mkdir(parents=True, exist_ok=True)
             
-            # Usa form.file.filename en lugar de filename
-            temp_path = temp_dir / form.file.filename
-            image.save(temp_path)
-            
-            print(f"File name: {form.file.filename}")
-            print(f"Temp path: {temp_path}")
-            print(f"Results: {results}")
-              
-            # Convert results to JSON
-            classification_scores = json.dumps(results)
+            # Convert image to base64 for display
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
             
             return templates.TemplateResponse(
                 "classification_output.html",
                 {
                     "request": request,
-                    "image_id": f"temp/{form.file.filename}",  # Aquí está la corrección
-                    "classification_scores": classification_scores,
-                    "is_upload": True
+                    "image_id": form.file.filename,
+                    "classification_scores": json.dumps(results),
+                    "is_upload": True,
+                    "image_data": f"data:image/jpeg;base64,{img_str}"  # Add base64 image data
                 }
             )
         except Exception as e:
@@ -238,3 +230,8 @@ async def handle_upload(request: Request):
                 "upload.html", 
                 {"request": request, "models": config.models, "errors": form.errors}
             )
+    
+    return templates.TemplateResponse(
+        "upload.html", 
+        {"request": request, "models": config.models, "errors": form.errors}
+    )

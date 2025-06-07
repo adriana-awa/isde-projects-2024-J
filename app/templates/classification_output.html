@@ -13,17 +13,15 @@
 
     </style>
     <div class="row">
-        <div class="col">
-            <div class="card">
-                <img class="large-front-thumbnail"
-                     {% if is_upload %}
-                        src="{{ url_for('static', path=image_id) }}"
-                     {% else %}
-                        src="{{ 'static/imagenet_subset/'+image_id }}"
-                     {% endif %}
-                     alt={{ image_id }}/>
-            </div>
+    <div class="col">
+        <div class="card">
+            {% if is_upload %}
+                <img class="large-front-thumbnail" src="{{ image_data }}" alt="{{ image_id }}">
+            {% else %}
+                <img class="large-front-thumbnail" src="{{ url_for('static', path='imagenet_subset/'+image_id) }}" alt="{{ image_id }}">
+            {% endif %}
         </div>
+    </div>
         <div class="col">
             <div class="card">
                 <div class="row">
@@ -33,7 +31,7 @@
                         </div>
                     </div>
                 </div>
-                <a class="btn btn-primary" href="/classifications" role="button">Back</a>
+                <a class="btn btn-primary" href="{% if is_upload %}/upload{% else %}/classifications{% endif %}" role="button">Back</a>
         <!-- Issue 3 buttons -->
                 <a class="btn btn-primary" href="/download_results?image_id={{image_id}}&classification_scores={{classification_scores}}" role="button">Download Results (JSON)</a>
                 <a class="btn btn-primary" href="/download_plot?image_id={{image_id}}&classification_scores={{classification_scores}}" role="button">Download Plot</a>
